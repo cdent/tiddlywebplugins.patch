@@ -1,0 +1,19 @@
+TiddlyWeb plugin to allow HTTP PATCH on TiddlyWeb entities.
+
+By default tiddlers are edited and created with PUT, wherein
+the request represents the full tiddler resource. In general 
+this is sufficient, but there are times when it may be useful
+to adjust just one attribute.
+
+For this plugin a PATCH is a JSON dictionary document containing
+one or more key and value pairs where the key is an attribute and
+the value is a complete replacement for that value[1]. For those
+entities where the entity has nested dictionaries, the deepest key
+is replaced, not the top key.
+
+Created and Copyright 2012, Chris Dent <cdent@peermore.com> with lots of
+help from the people talking in [1]. BSD License.
+
+[1] Several different options for how to do this were considered and
+this was considered the least ambiguious and onerous. See
+https://groups.google.com/d/topic/tiddlyweb/0udpLxRKp-E/discussion
