@@ -9,6 +9,7 @@ import httplib2
 import simplejson
 
 from tiddlyweb.model.bag import Bag
+from tiddlyweb.model.recipe import Recipe
 from tiddlyweb.web.serve import load_app
 from tiddlyweb.config import config
 
@@ -77,3 +78,48 @@ def test_patch_bag_flow():
     assert bag.desc == 'oh hi'
     assert bag.policy.read == ['frank']
     assert bag.policy.write == ['ANY']
+
+
+def test_recipe_patch_flow():
+    desc = 'oh hi'
+    recipe_json = '{"recipe": [["testbag", "limit=1"]], "desc": "%s", "policy": {"read": ["frank"], "vroom": ["frank"], "write": ["ANY"]}}' % desc
+    response, content = http.request('http://0.0.0.0:8080/recipes/testrecipe',
+            method = 'PATCH',
+            headers = {'Content-Type': 'application/json'},
+            body = recipe_json)
+
+    # no patch before PUT
+    assert response['status'] == '409', content
+
+    response, content = http.request('http://0.0.0.0:8080/recipes/testrecipe',
+            method = 'PUT', 
+            headers = {'Content-Type': 'application/json'},
+            body = '{"recipe": [["somebag", ""]], "policy": {"read": ["cdent"]}}')
+
+    assert response['status'] == '204', content
+
+    recipe = store.get(Recipe('testrecipe'))
+    assert recipe.desc == ''
+    assert recipe.get_recipe() == [['somebag', '']]
+    assert recipe.policy.read == ['cdent']
+
+    response, content = http.request('http://0.0.0.0:8080/recipes/testrecipe',
+            method = 'PATCH',
+            headers = {'Content-Type': 'text/plain'},
+            body = 'oh hi')
+
+    assert response['status'] == '415'
+    assert 'application/json required' in content
+
+    response, content = http.request('http://0.0.0.0:8080/recipes/testrecipe',
+            method = 'PATCH',
+            headers = {'Content-Type': 'application/json'},
+            body = recipe_json)
+
+    assert response['status'] == '204', content
+
+    recipe = store.get(Recipe('testrecipe'))
+    assert recipe.desc == 'oh hi'
+    assert recipe.policy.read == ['frank']
+    assert recipe.policy.write == ['ANY']
+    assert recipe.get_recipe() == [['testbag', 'limit=1']]

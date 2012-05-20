@@ -6,7 +6,8 @@ import simplejson
 
 from tiddlyweb.model.bag import Bag
 from tiddlyweb.model.policy import Policy
-from tiddlyweb.store import NoBagError
+from tiddlyweb.model.recipe import Recipe
+from tiddlyweb.store import NoBagError, NoRecipeError
 from tiddlyweb.web.http import HTTP400, HTTP409, HTTP415, HTTPException
 from tiddlyweb.web.util import get_route_value, content_length_and_type
 
@@ -16,12 +17,64 @@ class HTTP428(HTTPException):
     status = __doc__
 
 def patch_recipe(environ, start_response):
+    """
+    PATCH a single recipe, which must exists, with format 
+    similar to what follows. Resetting recipe (the whole thing!),
+    desc, or any policy constraint.
+
+
+    {"recipe": [["testbag", "limit=1"]],
+     "desc": "oh hi",
+     "policy": {"read": ["frank"],
+                "vroom": ["frank"],
+                "write": ["ANY"]}}
+    """
+    store = environ['tiddlyweb.store']
+    length, content_type = content_length_and_type(environ)
+
+    if content_type != 'application/json':
+        raise HTTP415('application/json required')
+
+    recipe_name = get_route_value(environ, 'recipe_name')
+    recipe = Recipe(recipe_name)
+    try:
+        recipe = store.get(recipe)
+    except NoRecipeError:
+        raise HTTP409('Unable to patch non-existent recipe')
+
+    data = _read_input(environ, length)
+
+    try:
+        for key, value in data.iteritems():
+            if key == 'desc':
+                recipe.desc = value
+            elif key == 'policy':
+                for constraint, rules in value.iteritems():
+                    if constraint in Policy.attributes:
+                        setattr(recipe.policy, constraint, rules)
+            elif key == 'recipe':
+                recipe.set_recipe(value)
+
+    except AttributeError, exc:
+        raise HTTP400('Malformed recipe info: %s' % exc)
+
+    store.put(recipe)
+
+    start_response('204 No Content', [])
     return []
+
 
 def patch_bag(environ, start_response):
     """
     PATCH a bag entity, resetting the description,
     or resetting one or more policy constraints.
+
+    Sample JSON looks like this:
+
+    {"desc": "oh hi",
+     "policy": {"read": ["frank"],
+                "vroom": ["frank"],
+                "write": ["ANY"]}}
     """
     store = environ['tiddlyweb.store']
     length, content_type = content_length_and_type(environ)
